@@ -7,11 +7,17 @@
 #include <ros/ros.h>
 #include <poly_traj/polynomial_traj.h>
 #include <active_perception/perception_utils.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <tf/tf.h>
 
 #include <plan_manage/backward.hpp>
 namespace backward {
 backward::SignalHandling sh;
 }
+
+ros::Publisher rotors_cmd_pub;
+geometry_msgs::PoseStamped rotors_cmd;
+
 using fast_planner::NonUniformBspline;
 using fast_planner::Polynomial;
 using fast_planner::PolynomialTraj;
@@ -299,6 +305,14 @@ void cmdCallback(const ros::TimerEvent& e) {
     yaw = atan2(yaw_dir[1], yaw_dir[0]);
   }
 
+  rotors_cmd.header.stamp = time_now;
+  rotors_cmd.header.frame_id = "world";
+  rotors_cmd.pose.position.x = pos(0);
+  rotors_cmd.pose.position.y = pos(1);
+  rotors_cmd.pose.position.z = pos(2);
+  rotors_cmd.pose.orientation = tf::createQuaternionMsgFromYaw(yawdot);
+  rotors_cmd_pub.publish(rotors_cmd);
+
   cmd.header.stamp = time_now;
   cmd.trajectory_id = traj_id_;
   cmd.position.x = pos(0);
@@ -312,7 +326,7 @@ void cmdCallback(const ros::TimerEvent& e) {
   cmd.acceleration.z = acc(2);
   cmd.yaw = yaw;
   cmd.yaw_dot = yawdot;
-  pos_cmd_pub.publish(cmd);
+  // pos_cmd_pub.publish(cmd);
 
   // Draw cmd
   // Eigen::Vector3d dir(cos(yaw), sin(yaw), 0.0);
@@ -445,7 +459,8 @@ int main(int argc, char** argv) {
   ros::Subscriber pg_T_vio_sub = node.subscribe("/loop_fusion/pg_T_vio", 10, pgTVioCallback);
 
   cmd_vis_pub = node.advertise<visualization_msgs::Marker>("planning/position_cmd_vis", 10);
-  pos_cmd_pub = node.advertise<quadrotor_msgs::PositionCommand>("/position_cmd", 50);
+  rotors_cmd_pub = node.advertise<geometry_msgs::PoseStamped>("/position_cmd", 50);
+  // pos_cmd_pub = node.advertise<quadrotor_msgs::PositionCommand>("/position_cmd", 50);
   traj_pub = node.advertise<visualization_msgs::Marker>("planning/travel_traj", 10);
 
   ros::Timer cmd_timer = node.createTimer(ros::Duration(0.01), cmdCallback);

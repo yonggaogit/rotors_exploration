@@ -27,12 +27,12 @@
 
     <arg name="odometry_topic" value="$(arg odom_topic)"/>
     <!-- sensor pose: transform of camera frame in the world frame -->
-    <arg name="sensor_pose_topic" value="/ardrone_1/vi_sensor/ground_truth/pose"/>
+    <arg name="sensor_pose_topic" value="nouse1"/>
     <!-- depth topic: depth image, 640x480 by default -->
     <!-- cloud topic: point cloud measurement  -->
     <!-- subscribe ONLY TO ONE of the two topics -->
     <arg name="depth_topic" value="/ardrone_1/vi_sensor/camera_depth/depth/disparity"/>
-    <arg name="cloud_topic" value="nouse1"/>
+    <arg name="cloud_topic" value="nouse2"/>
 
     <!-- intrinsic params of the depth camera -->
     <arg name="cx" value="320.5"/>
@@ -47,7 +47,7 @@
 
   <!-- trajectory server -->
   <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
-    <remap from="/position_cmd" to="planning/pos_cmd"/>
+    <remap from="/position_cmd" to="/ardrone_1/command/pose"/>
 
     <remap from="/odom_world" to="$(arg odom_topic)"/>
     <param name="traj_server/time_forward" value="1.5" type="double"/>

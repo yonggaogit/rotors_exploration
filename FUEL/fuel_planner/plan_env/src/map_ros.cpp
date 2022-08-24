@@ -73,7 +73,11 @@ void MapROS::init() {
       new message_filters::Subscriber<sensor_msgs::PointCloud2>(node_, "/map_ros/cloud", 50));
   pose_sub_.reset(
       new message_filters::Subscriber<geometry_msgs::PoseStamped>(node_, "/map_ros/pose", 25));
+  odom_sub_.reset(new message_filters::Subscriber<nav_msgs::Odometry>(node_, "/map_ros/odom", 100));
 
+  sync_image_odom_.reset(new message_filters::Synchronizer<MapROS::SyncPolicyImageOdom>(
+      SyncPolicyImageOdom(100), *depth_sub_, *odom_sub_));
+  sync_image_odom_->registerCallback(boost::bind(&MapROS::depthOdomCallback, this, _1, _2));
   sync_image_pose_.reset(new message_filters::Synchronizer<MapROS::SyncPolicyImagePose>(
       MapROS::SyncPolicyImagePose(100), *depth_sub_, *pose_sub_));
   sync_image_pose_->registerCallback(boost::bind(&MapROS::depthPoseCallback, this, _1, _2));
@@ -129,6 +133,63 @@ void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr& img,
 
   camera_q_ = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x,
                                  pose->pose.orientation.y, pose->pose.orientation.z);
+  cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, img->encoding);
+  if (img->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
+    (cv_ptr->image).convertTo(cv_ptr->image, CV_16UC1, k_depth_scaling_factor_);
+  cv_ptr->image.copyTo(*depth_image_);
+
+  auto t1 = ros::Time::now();
+
+  // generate point cloud, update map
+  proessDepthImage();
+  map_->inputPointCloud(point_cloud_, proj_points_cnt, camera_pos_);
+  if (local_updated_) {
+    map_->clearAndInflateLocalMap();
+    esdf_need_update_ = true;
+    local_updated_ = false;
+  }
+
+  auto t2 = ros::Time::now();
+  fuse_time_ += (t2 - t1).toSec();
+  max_fuse_time_ = max(max_fuse_time_, (t2 - t1).toSec());
+  fuse_num_ += 1;
+  if (show_occ_time_)
+    ROS_WARN("Fusion t: cur: %lf, avg: %lf, max: %lf", (t2 - t1).toSec(), fuse_time_ / fuse_num_,
+             max_fuse_time_);
+}
+
+void MapROS::depthOdomCallback(const sensor_msgs::ImageConstPtr &img,
+                                const nav_msgs::OdometryConstPtr &odom)
+{
+  std::cout << "--------------------------------depth odom start---------------------------------------" << std::endl;
+  /* get pose */
+  Eigen::Quaterniond body_q = Eigen::Quaterniond(odom->pose.pose.orientation.w,
+                                                 odom->pose.pose.orientation.x,
+                                                 odom->pose.pose.orientation.y,
+                                                 odom->pose.pose.orientation.z);    
+  Eigen::Matrix3d body_r_m = body_q.toRotationMatrix();   
+  Eigen::Matrix4d body2world;
+  body2world.block<3, 3>(0, 0) = body_r_m;
+  body2world(0, 3) = odom->pose.pose.position.x;
+  body2world(1, 3) = odom->pose.pose.position.y;
+  body2world(2, 3) = odom->pose.pose.position.z;
+  body2world(3, 3) = 1.0;
+  
+  Eigen::Matrix4d cam2body_;
+  cam2body_ << 0.0, 0.0, 1.0, 0.0,
+      -1.0, 0.0, 0.0, 0.0,
+      0.0, -1.0, 0.0, -0.02,
+      0.0, 0.0, 0.0, 1.0;
+
+  Eigen::Matrix4d cam_T = body2world * cam2body_;
+  camera_pos_(0) = cam_T(0, 3);
+  camera_pos_(1) = cam_T(1, 3);
+  camera_pos_(2) = cam_T(2, 3);
+  camera_q_ = Eigen::Quaterniond(cam_T.block<3, 3>(0, 0));
+
+  if (!map_->isInMap(camera_pos_))  // exceed mapped region
+    return;
+
   cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, img->encoding);
   if (img->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
     (cv_ptr->image).convertTo(cv_ptr->image, CV_16UC1, k_depth_scaling_factor_);

@@ -35,6 +35,7 @@
     <remap from ="/map_ros/pose"   to = "$(arg sensor_pose_topic)"/> 
     <remap from ="/map_ros/depth" to = "$(arg depth_topic)"/>
     <remap from ="/map_ros/cloud" to="$(arg cloud_topic)"/>
+    <remap from ="/map_ros/odom" to="$(arg odometry_topic)"/>
 
     <!-- replanning method -->
     <param name="planner_node/planner" value="1" type="int"/>
