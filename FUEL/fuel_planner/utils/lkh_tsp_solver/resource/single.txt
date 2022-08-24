@@ -1,15 +1,19 @@
-NAME : single.798.tour
-COMMENT : Length = 798
-COMMENT : Found by LKH [Keld Helsgaun] Wed Aug 24 13:34:14 2022
+NAME : single.2812.tour
+COMMENT : Length = 2812
+COMMENT : Found by LKH [Keld Helsgaun] Wed Aug 24 18:59:39 2022
 TYPE : TOUR
-DIMENSION : 8
+DIMENSION : 12
 TOUR_SECTION
 1
-3
-4
-6
-7
+11
+10
 8
+12
+9
+7
+6
+4
+3
 5
 2
 -1

@@ -310,7 +310,8 @@ void cmdCallback(const ros::TimerEvent& e) {
   rotors_cmd.pose.position.x = pos(0);
   rotors_cmd.pose.position.y = pos(1);
   rotors_cmd.pose.position.z = pos(2);
-  rotors_cmd.pose.orientation = tf::createQuaternionMsgFromYaw(yawdot);
+  rotors_cmd.pose.orientation = tf::createQuaternionMsgFromYaw(yaw);
+  std::cout << "(" << rotors_cmd.pose.position.x << ", " << rotors_cmd.pose.position.y << ", " << rotors_cmd.pose.position.z << ")" << std::endl;
   rotors_cmd_pub.publish(rotors_cmd);
 
   cmd.header.stamp = time_now;
@@ -326,14 +327,7 @@ void cmdCallback(const ros::TimerEvent& e) {
   cmd.acceleration.z = acc(2);
   cmd.yaw = yaw;
   cmd.yaw_dot = yawdot;
-  // pos_cmd_pub.publish(cmd);
 
-  // Draw cmd
-  // Eigen::Vector3d dir(cos(yaw), sin(yaw), 0.0);
-  // drawCmd(pos, 2 * dir, 2, Eigen::Vector4d(1, 1, 0, 0.7));
-  // drawCmd(pos, vel, 0, Eigen::Vector4d(0, 1, 0, 1));
-  // drawCmd(pos, acc, 1, Eigen::Vector4d(0, 0, 1, 1));
-  // drawCmd(pos, pos_err, 3, Eigen::Vector4d(1, 1, 0, 0.7));
   percep_utils_->setPose(pos, yaw);
   vector<Eigen::Vector3d> l1, l2;
   percep_utils_->getFOV(l1, l2);
@@ -351,14 +345,9 @@ void cmdCallback(const ros::TimerEvent& e) {
     end_time = ros::Time::now();
   }
   last_time = time_now;
-
-  // if (traj_cmd_.size() > 100000)
-  //   traj_cmd_.erase(traj_cmd_.begin(), traj_cmd_.begin() + 1000);
 }
 
 void test() {
-  // Test B-spline
-  // Generate the first B-spline's control points from a sin curve
   vector<Eigen::Vector3d> samples;
   const double dt1 = M_PI / 6.0;
   for (double theta = 0; theta <= 2 * M_PI; theta += dt1) {
@@ -383,9 +372,7 @@ void test() {
   vector<Eigen::Vector3d> traj_pts;
   for (double ts = 0; ts <= duration; ts += 0.01)
     traj_pts.push_back(poly.evaluate(ts, 0));
-  // displayTrajWithColor(traj_pts, 0.05, Eigen::Vector4d(1, 0, 0, 1), 99);
 
-  // Fit the polynomialw with B-spline
   const int seg_num = 30;
   double dt = duration / seg_num;
   vector<Eigen::Vector3d> point_set, boundary_der;
@@ -423,9 +410,6 @@ void test() {
   auto t1 = ros::Time::now();
   double tn = (ros::Time::now() - t1).toSec();
   while (tn < duration && ros::ok()) {
-    // Eigen::Vector3d p = bspline.evaluateDeBoorT(tn);
-    // Eigen::Vector3d v = vel.evaluateDeBoorT(tn);
-    // Eigen::Vector3d a = acc.evaluateDeBoorT(tn);
     Eigen::Vector3d p = fitted.evaluateDeBoorT(tn);
     Eigen::Vector3d v = vel.evaluateDeBoorT(tn);
     Eigen::Vector3d a = acc.evaluateDeBoorT(tn);
@@ -460,7 +444,6 @@ int main(int argc, char** argv) {
 
   cmd_vis_pub = node.advertise<visualization_msgs::Marker>("planning/position_cmd_vis", 10);
   rotors_cmd_pub = node.advertise<geometry_msgs::PoseStamped>("/position_cmd", 50);
-  // pos_cmd_pub = node.advertise<quadrotor_msgs::PositionCommand>("/position_cmd", 50);
   traj_pub = node.advertise<visualization_msgs::Marker>("planning/travel_traj", 10);
 
   ros::Timer cmd_timer = node.createTimer(ros::Duration(0.01), cmdCallback);
@@ -485,43 +468,30 @@ int main(int argc, char** argv) {
   std::cout << start_time.toSec() << std::endl;
   std::cout << end_time.toSec() << std::endl;
 
-  cmd.header.stamp = ros::Time::now();
-  cmd.header.frame_id = "world";
-  cmd.trajectory_flag = quadrotor_msgs::PositionCommand::TRAJECTORY_STATUS_READY;
-  cmd.trajectory_id = traj_id_;
-  cmd.position.x = init_pos[0];
-  cmd.position.y = init_pos[1];
-  cmd.position.z = init_pos[2];
-  cmd.velocity.x = 0.0;
-  cmd.velocity.y = 0.0;
-  cmd.velocity.z = 0.0;
-  cmd.acceleration.x = 0.0;
-  cmd.acceleration.y = 0.0;
-  cmd.acceleration.z = 0.0;
-  cmd.yaw = 0.0;
-  cmd.yaw_dot = 0.0;
+  
 
   percep_utils_.reset(new PerceptionUtils(nh));
 
-  // test();
-  // Initialization for exploration, move upward and downward
+
+  rotors_cmd.header.stamp = ros::Time::now();
+  rotors_cmd.header.frame_id = "world";
+  rotors_cmd.pose.position.x = init_pos[0];
+  rotors_cmd.pose.position.y = init_pos[1];
+  rotors_cmd.pose.position.z = init_pos[2];
+  rotors_cmd.pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
+  std::cout << "(" << rotors_cmd.pose.position.x << ", " << rotors_cmd.pose.position.y << ", " << rotors_cmd.pose.position.z << ")" << std::endl;
+
+
   for (int i = 0; i < 100; ++i) {
     cmd.position.z += 0.01;
-    pos_cmd_pub.publish(cmd);
+    rotors_cmd_pub.publish(rotors_cmd);
     ros::Duration(0.01).sleep();
   }
   for (int i = 0; i < 100; ++i) {
     cmd.position.z -= 0.01;
-    pos_cmd_pub.publish(cmd);
+    rotors_cmd_pub.publish(rotors_cmd);
     ros::Duration(0.01).sleep();
   }
-  // ros::Duration(1.0).sleep();
-  // for (int i = 0; i < 100; ++i)
-  // {
-  //   cmd.position.x -= 0.01;
-  //   pos_cmd_pub.publish(cmd);
-  //   ros::Duration(0.01).sleep();
-  // }
 
   R_loop = Eigen::Quaterniond(1, 0, 0, 0).toRotationMatrix();
   T_loop = Eigen::Vector3d(0, 0, 0);
